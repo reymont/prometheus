@@ -179,6 +179,7 @@ func New(o *Options) *Handler {
 	router.Get("/status", instrf("status", h.status))
 	router.Get("/flags", instrf("flags", h.flags))
 	router.Get("/config", instrf("config", h.config))
+	router.Post("/config/*file", instrf("newConfig",h.newConfig))
 	router.Get("/rules", instrf("rules", h.rules))
 	router.Get("/targets", instrf("targets", h.targets))
 	router.Get("/version", instrf("version", h.version))
@@ -368,6 +369,33 @@ func (h *Handler) config(w http.ResponseWriter, r *http.Request) {
 	defer h.mtx.RUnlock()
 
 	h.executeTemplate(w, "config.html", h.configString)
+}
+
+func (h *Handler) newConfig(w http.ResponseWriter, r *http.Request) {
+	h.mtx.RLock()
+	defer h.mtx.RUnlock()
+
+	f := route.Param(r.Context(), "file")
+	if(!strings.HasSuffix(f,"rules")&&!strings.HasSuffix(f,"yml")){
+		log.Warnf("is not config file!")
+		return
+	}
+
+	if(strings.HasPrefix(f,"/")){
+		f = f[1:]
+	}
+
+	c, err := os.Create("/etc/prometheus/"+f)
+	if err != nil {
+		log.Fatalf("writeLines: %s", err)
+	}
+	defer c.Close()
+
+	body, _ := ioutil.ReadAll(r.Body)
+	log.Infoln(string(body))
+	c.Write(body)
+	c.Sync()
+	log.Infoln("rewrite config "+c.Name())
 }
 
 func (h *Handler) rules(w http.ResponseWriter, r *http.Request) {
